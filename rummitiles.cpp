@@ -147,27 +147,37 @@ void printBoard(std::vector<std::vector<Tile *> >& b) {
     std::cout << std::endl;
 }
         
-std::vector<Tile *> pretty_print(std::vector<Tile *>& c, long long int combo, int starting_tile_size)
+std::vector<Tile *> pretty_print(std::vector<Tile *>& c, long long int combo, int starting_tile_size, bool createNew)
 {
     long long int n = c.size();
     std::vector<Tile *> combination;
     combination.reserve(starting_tile_size);
     for (long long int i = 0; i < n; ++i) {
         if ((combo >> i) & 1) {
-            combination.push_back(c[i]);
+            // we should only create new tiles when setting up each 
+            // Solve call for each worker thread, so that changes to the tile
+            // don't collide with other threads
+            // but within a specific thread, we should reuse the same tile object
+            if (createNew){
+                Tile *t = new Tile(c[i]->value, c[i]->color, -1, -1);
+                combination.push_back(t);
+            }
+            else{
+                combination.push_back(c[i]);
+            }
         }
     }
     return combination;
 }
 
-std::vector<std::vector<Tile *> > combo(std::vector<Tile *>& c, int starting_tile_size)
+std::vector<std::vector<Tile *> > combo(std::vector<Tile *>& c, int starting_tile_size, bool createNew)
 {
     std::vector<std::vector<Tile *> > ret;
     long long int n = c.size();
     long long int combo = (1 << (long long int) starting_tile_size) - 1; // starting_tile_size bit sets
     while (combo < (long long int)1<<n) {
 
-        std::vector<Tile *> combination = pretty_print(c, combo, starting_tile_size);
+        std::vector<Tile *> combination = pretty_print(c, combo, starting_tile_size, createNew);
 
         long long int x = combo & -combo;
         long long int y = combo + x;
@@ -348,7 +358,7 @@ std::vector<std::vector<std::vector< Tile *> > > getRuns(std::vector<Tile *> sta
     return ret;
 }
 
-bool Solve(std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> >& Board, int range,
+bool Solve(std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> > Board, int range,
 std::vector<std::vector<Tile *> > setsMap, std::vector<std::vector<std::vector<Tile *> > > runsSet, std::set<Tile *> visitedTiles);
 
 void removeTileFromContainers(std::vector<Tile *>& startingCombination, std::vector<std::vector<Tile*> >& setsMap, 
@@ -418,7 +428,7 @@ std::vector<std::vector<std::vector<Tile *> > >& runsSet, Tile* t, int range) {
 // returns true if t1, which has already been placed on the board, is compatible
 // with t2, a tile that is tentatively going to be placed adjacently to t1 on the board, false otherwise
 // TODO: Validate that sets contain all different colors. This matters when using 6's as 9's, low priority
-bool isValid(Tile *t1, std::vector<std::vector<Tile *> >& Board, int range){
+bool isValid(Tile *t1, const std::vector<std::vector<Tile *> >& Board, int range){
     std::vector<Tile *> v1;
     v1.reserve(3);
     std::vector<Tile *> v2;
@@ -553,7 +563,7 @@ bool isValid(Tile *t1, std::vector<std::vector<Tile *> >& Board, int range){
 // attempt to insert this permutation to the left of the current tile
 // then resume solving the board
 bool insertAndSolve(std::vector<Tile *> &permutation, std::vector<Tile *> startingCombination,
-std::vector<std::vector<Tile *> >& Board, int range, std::vector<std::vector<Tile*> > setsMap,
+std::vector<std::vector<Tile *> > Board, int range, std::vector<std::vector<Tile*> > setsMap,
 std::vector<std::vector<std::vector<Tile *> > > runsSet, Tile *curTile, 
 std::set<Tile *> visitedTiles, int xDim, int yDim){
     int size = permutation.size();
@@ -608,7 +618,7 @@ std::set<Tile *> visitedTiles, int xDim, int yDim){
     return false;
 }
 
-bool traverseAndSolveSet(std::vector<Tile *> &permutation, std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> >& Board, int range,
+bool traverseAndSolveSet(std::vector<Tile *> &permutation, std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> > Board, int range,
 std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Tile *> > > runsSet, Tile *curTile, std::set<Tile *> visitedTiles){
     // check above below left and right
     visitedTiles.insert(curTile);
@@ -682,7 +692,7 @@ bool AreConsecutive(int x, int y, int range){
     return false;
 }
 
-bool traverseAndSolveRun(std::vector<Tile *> &permutation, std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> >& Board, int range,
+bool traverseAndSolveRun(std::vector<Tile *> &permutation, std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> > Board, int range,
 std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Tile *> > > runsSet, Tile *curTile, std::set<Tile *> visitedTiles){
     // check above below left and right
     visitedTiles.insert(curTile);
@@ -760,7 +770,7 @@ std::vector<Tile *> splice(std::vector<Tile *> v, int start, int end){
 // assume that before any recursion, the board is in a valid state.
 // with this assumption, it is fine to return true when there are
 // no remaining tiles in the startingCombination container
-bool Solve(std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> >& Board, int range,
+bool Solve(std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> > Board, int range,
 std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Tile *> > > runsSet, std::set<Tile *> visitedTiles){
     // base case: if you have no tiles remaining to place, your turn is done, 
     // success has been achieved, return true
@@ -777,7 +787,7 @@ std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Ti
         // we need a permutation of each unique combination
         for (int i = v.size(); i > 0; i--){
             // optimization completed: check that permutations are sorted in largest length order first
-            std::vector<std::vector<Tile *> > someCombinations = combo(v, i);
+            std::vector<std::vector<Tile *> > someCombinations = combo(v, i, false);
             for (int j = 0; j < someCombinations.size(); j++){
                 std::vector<Tile *> combination = someCombinations[j];
                 if (combination.size() == 1){
@@ -849,7 +859,7 @@ std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Ti
     return false;
 }
 
-bool getResultFromStartingCombo(std::vector<Tile *> v, std::vector<std::vector<Tile *> >& Board, int range, int colors){
+bool getResultFromStartingCombo(std::vector<Tile *> v, std::vector<std::vector<Tile *> > Board, int range, int colors){
     std::vector<std::vector<Tile*> > setsMap = getSets(v, range);        
 
     // next perform a run analysis
@@ -907,6 +917,7 @@ int main(int argc, char* argv[]){
     //     testMain();
     //     return 0;
     // }
+
     std::cout<<"Number of numbers?"<<std::endl;
     std::string range_str = "";
     std::cin >> range_str;
@@ -917,13 +928,13 @@ int main(int argc, char* argv[]){
     std::string starting_tiles_str = "";
     std::cin >> starting_tiles_str;
 
-    // int num_threads = std::thread::hardware_concurrency();
-    // std::cout << "number of threads = " << num_threads << std::endl;
-    // std::vector<std::thread> thread_pool;
-    // for (int i = 0; i < num_threads; i++)
-    // {
-    //     thread_pool.push_back(std::thread(&Function_pool::infinite_loop_func, &func_pool));
-    // }
+    int num_threads = std::thread::hardware_concurrency();
+    std::cout << "number of threads = " << num_threads << std::endl;
+    // Create a thread pool
+    ThreadPool pool(num_threads);
+
+    // A vector of futures to collect the results
+    std::vector<std::future<bool>> futures;
 
     auto start = std::chrono::system_clock::now();
     
@@ -945,7 +956,7 @@ int main(int argc, char* argv[]){
     }
     
     std::cout<<"Calculating all possible starting configurations"<<std::endl;
-    std::vector<std::vector<Tile *> > allStartingTileCombinations = combo(allAvailableTiles, starting_tile_size);
+    std::vector<std::vector<Tile *> > allStartingTileCombinations = combo(allAvailableTiles, starting_tile_size, true);
     long long int totalStartingConfigurations = allStartingTileCombinations.size();
     
     auto end = std::chrono::system_clock::now();
@@ -970,9 +981,7 @@ int main(int argc, char* argv[]){
     
     for (long long int i = 0; i < allStartingTileCombinations.size(); i++){
         std::vector<Tile *> startingCombination = allStartingTileCombinations[i];
-        if (i%1000 == 0){
-            std::cout<< i << std::endl;
-        }
+        
         // The grid that's large enough to place all the tiles down
         // on the first round is nxn, where n is the number of starting tiles
         // This approximation may be pushed lower, but we can work with
@@ -1000,15 +1009,21 @@ int main(int argc, char* argv[]){
         // std::cout << i << ": " << std::endl;
         // printTileVec(startingCombination);
 
+        futures.push_back(pool.submit(Solve, startingCombination, Board, range, setsMap, runsSet, visitedTiles));        
+    }   
 
-        bool solveable = Solve(startingCombination, Board, range, setsMap, runsSet, visitedTiles);
+    for (int i = 0; i < totalStartingConfigurations; i++){
+        bool solveable = futures[i].get();  // Get the result from the future
+        if (i%1000 == 0){
+            std::cout<< i << std::endl;
+        }
         if (solveable){
             totalSolveable += 1;
         }
-        else{
-            //std::cout << "ITERATION " << i << " FAILED" << std::endl;
-        }
-    }    
+        // else{
+        //     std::cout << "ITERATION " << i << " FAILED" << std::endl;
+        // }
+    } 
     
     double ratio = totalSolveable / (double)totalStartingConfigurations;
     std::cout<<"Percentage that one goes out on the first turn: " << std::endl;

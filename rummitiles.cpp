@@ -106,11 +106,11 @@ auto ThreadPool::submit(F&& f, Args&&... args) -> std::future<typename std::resu
 
 class Tile {
     public:
-    int color;
-    int value;
+    short color;
+    short value;
 
-    int x;
-    int y;
+    short x;
+    short y;
     
     Tile(int o_value, int o_color, int o_x, int o_y){
         value = o_value;
@@ -225,6 +225,13 @@ bool isSet(std::vector<Tile *> &Tiles){
             return false;
         }
     }
+
+    // a set must have ALL different colors
+    if (Tiles[0]->color == Tiles[1]->color || 
+    Tiles[0]->color == Tiles[2]->color || Tiles[1]->color == Tiles[2]->color){
+        return false;
+    }
+
     return true;
 }
 
@@ -829,7 +836,7 @@ std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Ti
             std::vector<std::vector<Tile *> > allConsecutiveSubsequences;
 
             // we need all possible subsequences for this specific value and color
-            // optimization: consider longest runs first
+            // optimization done with subseqSize iteration: consider longest runs first
             for(int subseqSize = runsSet[val][color].size()+1; subseqSize > 0 ; subseqSize--){
                 for (int start = 0; start < 1+runsSet[val][color].size()-subseqSize; start++){
                     allConsecutiveSubsequences.push_back(splice(runsSet[val][color], start, start+subseqSize));
@@ -913,10 +920,10 @@ void testMain(){
 }
 
 int main(int argc, char* argv[]){
-    // if (argc){
-    //     testMain();
-    //     return 0;
-    // }
+    if (argc){
+        testMain();
+        return 0;
+    }
 
     std::cout<<"Number of numbers?"<<std::endl;
     std::string range_str = "";
@@ -1016,6 +1023,9 @@ int main(int argc, char* argv[]){
         bool solveable = futures[i].get();  // Get the result from the future
         if (i%1000 == 0){
             std::cout<< i << std::endl;
+        }
+        for (int j = 0; j < starting_tile_size; j++){
+            delete allStartingTileCombinations[i][j];
         }
         if (solveable){
             totalSolveable += 1;

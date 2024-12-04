@@ -134,7 +134,12 @@ class Tile {
 
 void printTileVec(std::vector<Tile *>& c) {
     for (int i = 0; i < c.size(); i++){
-        std::cout << *c[i] << " ";
+        if (c[i]){
+            std::cout << *c[i] << " ";
+        }
+        else{
+            std::cout << "[     nullptr     ] ";
+        }
     }
     std::cout << std::endl;
 }
@@ -146,7 +151,7 @@ void printBoard(std::vector<std::vector<Tile *> >& b) {
     }
     std::cout << std::endl;
 }
-        
+
 std::vector<Tile *> pretty_print(std::vector<Tile *>& c, long long int combo, int starting_tile_size, bool createNew)
 {
     long long int n = c.size();
@@ -246,7 +251,7 @@ bool isRun(std::vector<Tile *> &Tiles, int range){
     int color = Tiles[0]->isWild() ? Tiles[1]->color : Tiles[0]->color;
 
     // first do a color check
-    for (int i = 0; i < Tiles.size()-2; i++){
+    for (int i = 0; i < Tiles.size(); i++){
         Tile *t1 = Tiles[i];
         
         if (t1->color != color && !t1->isWild()){
@@ -365,7 +370,7 @@ std::vector<std::vector<std::vector< Tile *> > > getRuns(std::vector<Tile *> sta
     return ret;
 }
 
-bool Solve(std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> > Board, int range,
+bool Solve(std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> >& Board, int range,
 std::vector<std::vector<Tile *> > setsMap, std::vector<std::vector<std::vector<Tile *> > > runsSet, std::set<Tile *> visitedTiles);
 
 void removeTileFromContainers(std::vector<Tile *>& startingCombination, std::vector<std::vector<Tile*> >& setsMap, 
@@ -443,7 +448,7 @@ bool isValid(Tile *t1, const std::vector<std::vector<Tile *> >& Board, int range
     std::vector<Tile *> v3;
     v3.reserve(3);
 
-    if (t1->x-2 > 0){
+    if (t1->x-2 >= 0){
         // ensure there are no empty tiles
         if (Board[t1->x-2][t1->y] && Board[t1->x-1][t1->y] && Board[t1->x][t1->y]){
             v1.push_back(Board[t1->x-2][t1->y]);
@@ -451,7 +456,7 @@ bool isValid(Tile *t1, const std::vector<std::vector<Tile *> >& Board, int range
             v1.push_back(Board[t1->x][t1->y]);
         }
     }
-    if (t1->x-1 > 0 && t1->x+1 < Board.size()){
+    if (t1->x-1 >= 0 && t1->x+1 < Board.size()){
         if (Board[t1->x-1][t1->y] && Board[t1->x][t1->y] && Board[t1->x+1][t1->y]){
             v2.push_back(Board[t1->x-1][t1->y]);
             v2.push_back(Board[t1->x][t1->y]);
@@ -502,14 +507,14 @@ bool isValid(Tile *t1, const std::vector<std::vector<Tile *> >& Board, int range
     v6.reserve(3);
 
     // do the y axis
-    if (t1->y-2 > 0){
+    if (t1->y-2 >= 0){
         if (Board[t1->x][t1->y-2] && Board[t1->x][t1->y-1] && Board[t1->x][t1->y]){
             v4.push_back(Board[t1->x][t1->y-2]);
             v4.push_back(Board[t1->x][t1->y-1]);
             v4.push_back(Board[t1->x][t1->y]);
         }
     }
-    if (t1->y-1 > 0 && t1->y+1 < Board.size()){
+    if (t1->y-1 >= 0 && t1->y+1 < Board.size()){
         if (Board[t1->x][t1->y-1] && Board[t1->x][t1->y] && Board[t1->x][t1->y+1]){
             v5.push_back(Board[t1->x][t1->y-1]);
             v5.push_back(Board[t1->x][t1->y]);
@@ -570,7 +575,7 @@ bool isValid(Tile *t1, const std::vector<std::vector<Tile *> >& Board, int range
 // attempt to insert this permutation to the left of the current tile
 // then resume solving the board
 bool insertAndSolve(std::vector<Tile *> &permutation, std::vector<Tile *> startingCombination,
-std::vector<std::vector<Tile *> > Board, int range, std::vector<std::vector<Tile*> > setsMap,
+std::vector<std::vector<Tile *> >& Board, int range, std::vector<std::vector<Tile*> > setsMap,
 std::vector<std::vector<std::vector<Tile *> > > runsSet, Tile *curTile, 
 std::set<Tile *> visitedTiles, int xDim, int yDim){
     int size = permutation.size();
@@ -613,19 +618,21 @@ std::set<Tile *> visitedTiles, int xDim, int yDim){
             bool result = Solve(startingCombination, Board, range, setsMap, runsSet, visitedTiles);
             // regardless of whether we solve or not, the tentatively placed tiles' locations
             // need to be reset.
-            for (unsigned int i = size; i > 0; i--){
-                Board[curTile->x+(i*xDim)][curTile->y+(i*yDim)]->x = -1;
-                Board[curTile->x+(i*xDim)][curTile->y+(i*yDim)]->y = -1;
-                Board[curTile->x+(i*xDim)][curTile->y+(i*yDim)] = nullptr;
+            if (!result){
+                for (unsigned int i = size; i > 0; i--){
+                    Board[curTile->x+(i*xDim)][curTile->y+(i*yDim)]->x = -1;
+                    Board[curTile->x+(i*xDim)][curTile->y+(i*yDim)]->y = -1;
+                    Board[curTile->x+(i*xDim)][curTile->y+(i*yDim)] = nullptr;
+                }
             }
-
+            
             return result;
         }
     }
     return false;
 }
 
-bool traverseAndSolveSet(std::vector<Tile *> &permutation, std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> > Board, int range,
+bool traverseAndSolveSet(std::vector<Tile *> &permutation, std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> >& Board, int range,
 std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Tile *> > > runsSet, Tile *curTile, std::set<Tile *> visitedTiles){
     // check above below left and right
     visitedTiles.insert(curTile);
@@ -699,7 +706,7 @@ bool AreConsecutive(int x, int y, int range){
     return false;
 }
 
-bool traverseAndSolveRun(std::vector<Tile *> &permutation, std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> > Board, int range,
+bool traverseAndSolveRun(std::vector<Tile *> &permutation, std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> >& Board, int range,
 std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Tile *> > > runsSet, Tile *curTile, std::set<Tile *> visitedTiles){
     // check above below left and right
     visitedTiles.insert(curTile);
@@ -777,7 +784,7 @@ std::vector<Tile *> splice(std::vector<Tile *> v, int start, int end){
 // assume that before any recursion, the board is in a valid state.
 // with this assumption, it is fine to return true when there are
 // no remaining tiles in the startingCombination container
-bool Solve(std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> > Board, int range,
+bool Solve(std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> >& Board, int range,
 std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Tile *> > > runsSet, std::set<Tile *> visitedTiles){
     // base case: if you have no tiles remaining to place, your turn is done, 
     // success has been achieved, return true
@@ -858,15 +865,12 @@ std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Ti
                 }
             }
         }
-
-        // implement traverseAndSolveRun
-        break;
     }                
 
     return false;
 }
 
-bool getResultFromStartingCombo(std::vector<Tile *> v, std::vector<std::vector<Tile *> > Board, int range, int colors){
+bool getResultFromStartingCombo(std::vector<Tile *> v, std::vector<std::vector<Tile *> > &Board, int range, int colors){
     std::vector<std::vector<Tile*> > setsMap = getSets(v, range);        
 
     // next perform a run analysis
@@ -881,24 +885,22 @@ bool getResultFromStartingCombo(std::vector<Tile *> v, std::vector<std::vector<T
 void testMain(){
 
     std::vector<Tile *> startingCombination;
-    int range = 3;
+    int range = 6;
     int colors = 2;
     Tile *t1 = new Tile(0,1,-1,-1);
     Tile *t2 = new Tile(1,1,-1,-1);
-    Tile *t3 = new Tile(2,0,-1,-1);
-    Tile *t4 = new Tile(0,1,-1,-1);
-    Tile *t5 = new Tile(1,1,-1,-1);
-    Tile *t6 = new Tile(2,0,-1,-1);
+    Tile *t3 = new Tile(2,1,-1,-1);
+    Tile *t4 = new Tile(3,1,-1,-1);
+    Tile *t5 = new Tile(4,1,-1,-1);
+    Tile *t6 = new Tile(4,0,-1,-1);
 
     std::vector<Tile *> v1;
-    std::vector<Tile *> v2;
     v1.push_back(t1);
     v1.push_back(t2);
     v1.push_back(t3);
-
-    v2.push_back(t4);
-    v2.push_back(t5);
-    v2.push_back(t6);
+    v1.push_back(t4);
+    v1.push_back(t5);
+    v1.push_back(t6);
 
     int starting_tile_size = v1.size();
 
@@ -909,18 +911,16 @@ void testMain(){
         Board[starting_tile_size][starting_tile_size] = new Tile(-1,-1, starting_tile_size, starting_tile_size);
     }
     
-    bool result1 = getResultFromStartingCombo(v1, Board, range, colors);
+    bool success = getResultFromStartingCombo(v1, Board, range, colors);
 
-    for (int i = 0; i < 100; i++){
-        if (result1 != getResultFromStartingCombo(v2, Board, range, colors)){
-            std::cout<<"UNEQUAL OUTCOMES"<<std::endl;
-            break;
-        }
+    if (success){
+        std::cout<< "### SUCCESS ###" << std::endl << "Board solution:" << std::endl;
+        printBoard(Board);
     }
 }
 
 int main(int argc, char* argv[]){
-    if (argc){
+    if (argc == 2){
         testMain();
         return 0;
     }
@@ -982,15 +982,15 @@ int main(int argc, char* argv[]){
     //     printTileVec(allStartingTileCombinations[i]);
     // }
     
-    std::vector<std::vector<Tile *> > Board(starting_tile_size*2 + 1, std::vector<Tile *>(starting_tile_size*2 + 1, nullptr));
 
     long long int totalSolveable = 0;
-    
+    // Optimization here: move board initialization into the for loop below, then pass board by reference.
+    // we make copies of the board anyways, but this  way the same copy of the board can be used during recursion
     for (long long int i = 0; i < allStartingTileCombinations.size(); i++){
-        std::vector<Tile *> startingCombination = allStartingTileCombinations[i];
+        std::vector<std::vector<Tile *> > Board(starting_tile_size*2 + 1, std::vector<Tile *>(starting_tile_size*2 + 1, nullptr));
         
-        // The grid that's large enough to place all the tiles down
-        // on the first round is nxn, where n is the number of starting tiles
+        // A grid that's large enough to place all the tiles down
+        // on the first round is 2n+1x2n+1, where n is the number of starting tiles
         // This approximation may be pushed lower, but we can work with
         // this assumption for now.
 
@@ -1000,10 +1000,9 @@ int main(int argc, char* argv[]){
             Board[starting_tile_size][starting_tile_size] = new Tile(-1,-1, starting_tile_size, starting_tile_size);
         }
 
+        std::vector<Tile *> startingCombination = allStartingTileCombinations[i];
         
-        // perform a greedy analysis and try to
-        // create as many runs / sets from the 
-        // starting tiles as possible
+        // perform an analysis on runs / sets contained in the starting tiles
 
         // first divide the starting tiles into a map of sets of set tiles.
         std::vector<std::vector<Tile *> > setsMap = getSets(startingCombination, range);        
@@ -1030,9 +1029,12 @@ int main(int argc, char* argv[]){
         if (solveable){
             totalSolveable += 1;
         }
-        // else{
-        //     std::cout << "ITERATION " << i << " FAILED" << std::endl;
-        // }
+        else{
+            std::cout << "ITERATION " << i << " FAILED" << std::endl;
+            std::cout << "ITERATION " << i << ":" << std::endl;
+            printTileVec(allStartingTileCombinations[i]);
+
+        }
     } 
     
     double ratio = totalSolveable / (double)totalStartingConfigurations;

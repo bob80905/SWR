@@ -616,7 +616,7 @@ std::set<Tile *> visitedTiles, int xDim, int yDim){
                 removeTileFromContainers(startingCombination, setsMap, runsSet, permutation[size - i], range);
             }
             bool result = Solve(startingCombination, Board, range, setsMap, runsSet, visitedTiles);
-            // regardless of whether we solve or not, the tentatively placed tiles' locations
+            // if we failed, the tentatively placed tiles' locations
             // need to be reset.
             if (!result){
                 for (unsigned int i = size; i > 0; i--){
@@ -706,6 +706,98 @@ bool AreConsecutive(int x, int y, int range){
     return false;
 }
 
+// take a pair of tiles, either t1 and t2, and attempt to place
+// the pair of tiles on opposite sides of curTile. Recursively solve, return result
+bool doubleInsertSingleTilesAndSolve(Tile* t1, Tile* t2, bool horizontal, std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> >& Board, int range,
+std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Tile *> > > runsSet, Tile *curTile, std::set<Tile *> visitedTiles){
+    assert(t1 && t2);
+    int x = curTile->x;
+    int y = curTile->y;
+    if (horizontal && x < Board.size() - 1 && x > 0){
+        if (!Board[x-1][y] && !Board[x+1][y]){
+            Board[x-1][y] = t1;
+            Board[x-1][y]->x = x-1;
+            Board[x-1][y]->y = y;
+
+            Board[x+1][y] = t2;
+            Board[x+1][y]->x = x+1;
+            Board[x+1][y]->y = y;
+
+            if (!isValid(t1, Board, range) || !isValid(t2, Board, range)){
+                // unset these tiles back to nullptr
+                Board[x-1][y]->x = -1;
+                Board[x-1][y]->y = -1;
+                Board[x-1][y] = nullptr;
+
+                Board[x+1][y]->x = -1;
+                Board[x+1][y]->y = -1;
+                Board[x+1][y] = nullptr;
+
+                return false;
+            }
+
+            removeTileFromContainers(startingCombination, setsMap, runsSet, t1, range);
+            removeTileFromContainers(startingCombination, setsMap, runsSet, t2, range);
+
+            bool result = Solve(startingCombination, Board, range, setsMap, runsSet, visitedTiles);
+
+            Board[x-1][y]->x = -1;
+            Board[x-1][y]->y = -1;
+            Board[x-1][y] = nullptr;
+
+            Board[x+1][y]->x = -1;
+            Board[x+1][y]->y = -1;
+            Board[x+1][y] = nullptr;
+
+            return result;
+        }
+    }
+
+    else if (!horizontal && y < Board.size() - 1 && y > 0){
+        if (!Board[x][y-1] && !Board[x][y+1]){
+            Board[x][y-1] = t1;
+            Board[x][y-1]->x = x;
+            Board[x][y-1]->y = y-1;
+
+            Board[x][y+1] = t2;
+            Board[x][y+1]->x = x;
+            Board[x][y+1]->y = y+1;
+        
+            if (!isValid(t1, Board, range) || !isValid(t2, Board, range)){
+                // unset these tiles back to nullptr
+                Board[x][y-1]->x = -1;
+                Board[x][y-1]->y = -1;
+                Board[x][y-1] = nullptr;
+
+                Board[x][y+1]->x = -1;
+                Board[x][y+1]->y = -1;
+                Board[x][y+1] = nullptr;
+
+                return false;
+            }
+
+            removeTileFromContainers(startingCombination, setsMap, runsSet, t1, range);
+            removeTileFromContainers(startingCombination, setsMap, runsSet, t2, range);
+
+            bool result = Solve(startingCombination, Board, range, setsMap, runsSet, visitedTiles);
+            
+            // we do this to maintain the solved board state for debugging
+            if (!result){
+                Board[x][y-1]->x = -1;
+                Board[x][y-1]->y = -1;
+                Board[x][y-1] = nullptr;
+
+                Board[x][y+1]->x = -1;
+                Board[x][y+1]->y = -1;
+                Board[x][y+1] = nullptr;
+            }
+
+            return result;
+        }
+    }
+    return false;
+}
+
 bool traverseAndSolveRun(std::vector<Tile *> &permutation, std::vector<Tile *> startingCombination, std::vector<std::vector<Tile *> >& Board, int range,
 std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Tile *> > > runsSet, Tile *curTile, std::set<Tile *> visitedTiles){
     // check above below left and right
@@ -758,6 +850,91 @@ std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Ti
     // construct a valid run that is of length at least 3,
     // and that any tiles that are placed that are adjacent to other
     // existing tiles are also valid 
+
+    // however, one precaution must be taken:
+    // two length-one runs can be joined to form
+    // a valid run by placement on opposite sides of any tile, if their absolute difference is 2.
+    // Both of such tiles depend on each other's placement, so we need
+    // to perform two placements at once and see if it works.
+
+    // All we need to do is look for all runs that are size == 1, since
+    // those runs are invalid on their own, and see if there exists a run that starts
+    // at one PLUS the end value of the previous run, where both are size 1. These two can be joined
+    // together and validated by the joining tile, assuming the tile has available sides.
+
+    // runs of size 2 or larger don't need this special treatment since they will be attaching to a
+    // side by traverseAndSolve, so they will have 3 tiles all the time, which ensures things are valid.
+    // but for 1 sized runs, we need to consider "helping it out" by possibly placing another tile to 
+    // produce a run with it.
+
+    // if this run is size 1...
+    if (permutation.size() == 1){
+        Tile * t = permutation[0];
+        int nextNextValue = (t->value + 2) % range;
+        // prevent mod from assigning negative numbers by adding 2*range
+        int prevPrevValue = (t->value - 2 + 2*range) % range;
+        Tile * prevRunTile = nullptr;
+        Tile * nextRunTile = nullptr;
+        if (!runsSet[prevPrevValue][t->color].empty() && runsSet[prevPrevValue][t->color].size() == 1){
+            prevRunTile = runsSet[prevPrevValue][t->color][0];
+        }
+        if (!runsSet[nextNextValue][t->color].empty() && runsSet[nextNextValue][t->color].size() == 1){
+            nextRunTile = runsSet[nextNextValue][t->color][0];
+        }
+        
+        if (prevRunTile){
+            success |= doubleInsertSingleTilesAndSolve(t, prevRunTile, true, startingCombination, Board, range, 
+            setsMap, runsSet, curTile, visitedTiles);
+
+            if (success)
+                return success;
+
+            success |= doubleInsertSingleTilesAndSolve(t, prevRunTile, false, startingCombination, Board, range, 
+            setsMap, runsSet, curTile, visitedTiles);
+
+            if (success)
+                return success;
+
+            success |= doubleInsertSingleTilesAndSolve(prevRunTile, t, true, startingCombination, Board, range, 
+            setsMap, runsSet, curTile, visitedTiles);
+
+            if (success)
+                return success;
+
+            success |= doubleInsertSingleTilesAndSolve(prevRunTile, t, false, startingCombination, Board, range, 
+            setsMap, runsSet, curTile, visitedTiles);
+
+            if (success)
+                return success;
+        }
+        if (nextRunTile){
+           success |= doubleInsertSingleTilesAndSolve(t, nextRunTile, true, startingCombination, Board, range, 
+            setsMap, runsSet, curTile, visitedTiles);
+
+            if (success)
+                return success;
+
+            success |= doubleInsertSingleTilesAndSolve(t, nextRunTile, false, startingCombination, Board, range, 
+            setsMap, runsSet, curTile, visitedTiles);
+
+            if (success)
+                return success;
+
+            success |= doubleInsertSingleTilesAndSolve(nextRunTile, t, true, startingCombination, Board, range, 
+            setsMap, runsSet, curTile, visitedTiles);
+
+            if (success)
+                return success;
+
+            success |= doubleInsertSingleTilesAndSolve(nextRunTile, t, false, startingCombination, Board, range, 
+            setsMap, runsSet, curTile, visitedTiles);
+
+            if (success)
+                return success;
+        }
+        
+    }
+
     success |= insertAndSolve(permutation, startingCombination, Board, range,
      setsMap, runsSet, curTile, visitedTiles, -1, 0);
     if (success) 
@@ -835,18 +1012,21 @@ std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Ti
     Board = oldBoard;
 
     // place all valid subsequences of the run
+    std::vector<std::vector<Tile *> > smallRuns;
     for (int val = 0; val < runsSet.size(); val++){
         for (int color = 0; color < runsSet[val].size(); color++){
-            if (runsSet[val][color].empty()){
+            std::vector<Tile *> run = runsSet[val][color];
+            if (run.empty()){
                 continue;
             }
+
             std::vector<std::vector<Tile *> > allConsecutiveSubsequences;
 
             // we need all possible subsequences for this specific value and color
             // optimization done with subseqSize iteration: consider longest runs first
-            for(int subseqSize = runsSet[val][color].size()+1; subseqSize > 0 ; subseqSize--){
-                for (int start = 0; start < 1+runsSet[val][color].size()-subseqSize; start++){
-                    allConsecutiveSubsequences.push_back(splice(runsSet[val][color], start, start+subseqSize));
+            for(int subseqSize = run.size()+1; subseqSize > 0 ; subseqSize--){
+                for (int start = 0; start < 1+run.size()-subseqSize; start++){
+                    allConsecutiveSubsequences.push_back(splice(run, start, start+subseqSize));
                 }
             }
 
@@ -865,7 +1045,7 @@ std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Ti
                 }
             }
         }
-    }                
+    }   
 
     return false;
 }
@@ -1029,12 +1209,12 @@ int main(int argc, char* argv[]){
         if (solveable){
             totalSolveable += 1;
         }
-        else{
-            std::cout << "ITERATION " << i << " FAILED" << std::endl;
-            std::cout << "ITERATION " << i << ":" << std::endl;
-            printTileVec(allStartingTileCombinations[i]);
+        // else{
+        //     std::cout << "ITERATION " << i << " FAILED" << std::endl;
+        //     std::cout << "ITERATION " << i << ":" << std::endl;
+        //     printTileVec(allStartingTileCombinations[i]);
 
-        }
+        // }
     } 
     
     double ratio = totalSolveable / (double)totalStartingConfigurations;

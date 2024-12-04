@@ -264,22 +264,24 @@ bool isRun(std::vector<Tile *> &Tiles, int range){
         Tile *t1 = Tiles[i];
         Tile *t2 = Tiles[i+1];
         Tile *t3 = Tiles[i+2];
-        int nextValue = t1->value == range-1 ? 0 : t1->value + 1;
-        int nextNextValue = nextValue == range-1 ? 0 : nextValue + 1;
-
+        
         if (t1->isWild()){
-            if (t2->value != nextValue){
-                return false;
-            }
-            if (t3->value != nextNextValue){
+            // t2 and t3 should be consecutive in value when t1 is wild
+            int nextValue = t2->value == range-1 ? 0 : t2->value + 1;
+            int prevValue = t2->value == 0 ? range-1 : t2->value - 1;
+            if (t3->value != nextValue && t3->value != prevValue){
                 return false;
             }
         }
-        else{            
-            if (t2->value != nextValue && !t2->isWild()){
+        else{
+            int nextValue = t1->value == range-1 ? 0 : t1->value + 1;
+            int nextNextValue = nextValue == range-1 ? 0 : nextValue + 1;
+            int prevValue = t1->value == 0 ? range-1 : t1->value -1;
+            int prevPrevValue = prevValue == 0 ? range-1 : prevValue -1;
+            if (t2->value != nextValue && t2->value != prevValue && !t2->isWild()){
                 return false;
             }
-            if (t3->value != nextNextValue && !t3->isWild()){
+            if (t3->value != nextNextValue && t3->value != prevPrevValue && !t3->isWild()){
                 return false;
             }
         }
@@ -741,14 +743,15 @@ std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Ti
 
             bool result = Solve(startingCombination, Board, range, setsMap, runsSet, visitedTiles);
 
-            Board[x-1][y]->x = -1;
-            Board[x-1][y]->y = -1;
-            Board[x-1][y] = nullptr;
+            if (!result){
+                Board[x-1][y]->x = -1;
+                Board[x-1][y]->y = -1;
+                Board[x-1][y] = nullptr;
 
-            Board[x+1][y]->x = -1;
-            Board[x+1][y]->y = -1;
-            Board[x+1][y] = nullptr;
-
+                Board[x+1][y]->x = -1;
+                Board[x+1][y]->y = -1;
+                Board[x+1][y] = nullptr;
+            }
             return result;
         }
     }
@@ -859,7 +862,7 @@ std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Ti
 
     // All we need to do is look for all runs that are size == 1, since
     // those runs are invalid on their own, and see if there exists a run that starts
-    // at one PLUS the end value of the previous run, where both are size 1. These two can be joined
+    // at two PLUS OR two LESS THAN the end value of the previous run, where both are size 1. These two can be joined
     // together and validated by the joining tile, assuming the tile has available sides.
 
     // runs of size 2 or larger don't need this special treatment since they will be attaching to a
@@ -932,23 +935,49 @@ std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Ti
             if (success)
                 return success;
         }
-        
     }
 
-    success |= insertAndSolve(permutation, startingCombination, Board, range,
-     setsMap, runsSet, curTile, visitedTiles, -1, 0);
-    if (success) 
-        return success;
-    success |= insertAndSolve(permutation, startingCombination, Board, range, 
-    setsMap, runsSet, curTile, visitedTiles, 1, 0);
-    if (success) 
-        return success;
-    success |= insertAndSolve(permutation, startingCombination, Board, range,
-     setsMap, runsSet, curTile, visitedTiles, 0, -1);
-    if (success) 
-        return success;
-    success |= insertAndSolve(permutation, startingCombination, Board, range,
-     setsMap, runsSet, curTile, visitedTiles, 0, -1);
+    // only do the below when permutation size is not 1.
+    else {
+        success |= insertAndSolve(permutation, startingCombination, Board, range,
+        setsMap, runsSet, curTile, visitedTiles, -1, 0);
+        if (success) 
+            return success;
+        success |= insertAndSolve(permutation, startingCombination, Board, range, 
+        setsMap, runsSet, curTile, visitedTiles, 1, 0);
+        if (success) 
+            return success;
+        success |= insertAndSolve(permutation, startingCombination, Board, range,
+        setsMap, runsSet, curTile, visitedTiles, 0, -1);
+        if (success) 
+            return success;
+        success |= insertAndSolve(permutation, startingCombination, Board, range,
+        setsMap, runsSet, curTile, visitedTiles, 0, -1);
+        if (success){
+            return success;
+        }
+
+        // now try reversing the run before inserting it.
+        std::reverse(permutation.begin(), permutation.end());
+
+        success |= insertAndSolve(permutation, startingCombination, Board, range,
+        setsMap, runsSet, curTile, visitedTiles, -1, 0);
+        if (success) 
+            return success;
+        success |= insertAndSolve(permutation, startingCombination, Board, range, 
+        setsMap, runsSet, curTile, visitedTiles, 1, 0);
+        if (success) 
+            return success;
+        success |= insertAndSolve(permutation, startingCombination, Board, range,
+        setsMap, runsSet, curTile, visitedTiles, 0, -1);
+        if (success) 
+            return success;
+        success |= insertAndSolve(permutation, startingCombination, Board, range,
+        setsMap, runsSet, curTile, visitedTiles, 0, -1);
+        if (success){
+            return success;
+        }
+    }
 
     return success;
 }
@@ -1062,59 +1091,7 @@ bool getResultFromStartingCombo(std::vector<Tile *> v, std::vector<std::vector<T
     return Solve(v, Board, range, setsMap, runsSet, visitedTiles);
 }
 
-void testMain(){
-
-    std::vector<Tile *> startingCombination;
-    int range = 6;
-    int colors = 2;
-    Tile *t1 = new Tile(0,1,-1,-1);
-    Tile *t2 = new Tile(1,1,-1,-1);
-    Tile *t3 = new Tile(2,1,-1,-1);
-    Tile *t4 = new Tile(3,1,-1,-1);
-    Tile *t5 = new Tile(4,1,-1,-1);
-    Tile *t6 = new Tile(4,0,-1,-1);
-
-    std::vector<Tile *> v1;
-    v1.push_back(t1);
-    v1.push_back(t2);
-    v1.push_back(t3);
-    v1.push_back(t4);
-    v1.push_back(t5);
-    v1.push_back(t6);
-
-    int starting_tile_size = v1.size();
-
-    std::cout<<std::endl<<"### RUNNING TEST ###"<<std::endl << std::endl;
-    std::vector<std::vector<Tile *> > Board(starting_tile_size*2 + 1, std::vector<Tile *>(starting_tile_size*2 + 1, nullptr));
-
-    if (!Board[starting_tile_size][starting_tile_size]){
-        Board[starting_tile_size][starting_tile_size] = new Tile(-1,-1, starting_tile_size, starting_tile_size);
-    }
-    
-    bool success = getResultFromStartingCombo(v1, Board, range, colors);
-
-    if (success){
-        std::cout<< "### SUCCESS ###" << std::endl << "Board solution:" << std::endl;
-        printBoard(Board);
-    }
-}
-
-int main(int argc, char* argv[]){
-    if (argc == 2){
-        testMain();
-        return 0;
-    }
-
-    std::cout<<"Number of numbers?"<<std::endl;
-    std::string range_str = "";
-    std::cin >> range_str;
-    std::cout<<"Number of colors?"<<std::endl;
-    std::string colors_str = "";
-    std::cin >> colors_str;
-    std::cout<<"Number of starting tiles?"<<std::endl;
-    std::string starting_tiles_str = "";
-    std::cin >> starting_tiles_str;
-
+double driveSolve(int range, int colors, int starting_tile_size){
     int num_threads = std::thread::hardware_concurrency();
     std::cout << "number of threads = " << num_threads << std::endl;
     // Create a thread pool
@@ -1123,16 +1100,6 @@ int main(int argc, char* argv[]){
     // A vector of futures to collect the results
     std::vector<std::future<bool>> futures;
 
-    auto start = std::chrono::system_clock::now();
-    
-    int range = atoi(range_str.data());
-    int colors = atoi(colors_str.data());
-    int starting_tile_size = atoi(starting_tiles_str.data());
-    
-    std::cout<<"Range is 0 to " << range - 1 << std::endl;
-    std::cout<<"There are " << colors_str << " colors" << std::endl;
-    std::cout<<"There are " << starting_tiles_str << " starting tiles " << std::endl;
-    
     std::vector<Tile *> allAvailableTiles;
     // create all possible tiles
     for (int i = 0; i < range; i++){
@@ -1143,15 +1110,16 @@ int main(int argc, char* argv[]){
     }
     
     std::cout<<"Calculating all possible starting configurations"<<std::endl;
+    auto startInner = std::chrono::system_clock::now();
     std::vector<std::vector<Tile *> > allStartingTileCombinations = combo(allAvailableTiles, starting_tile_size, true);
     long long int totalStartingConfigurations = allStartingTileCombinations.size();
     
-    auto end = std::chrono::system_clock::now();
+    auto endInner = std::chrono::system_clock::now();
  
-    std::chrono::duration<double> elapsed_seconds = end-start;
-    std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+    std::chrono::duration<double> elapsed_seconds_inner = endInner-startInner;
+    std::time_t end_time = std::chrono::system_clock::to_time_t(endInner);
  
-    std::cout << "elapsed time for starting configurations: " << elapsed_seconds.count() << "s"
+    std::cout << "elapsed time for starting configurations: " << elapsed_seconds_inner.count() << "s"
               << std::endl;
 
     std::cout << totalStartingConfigurations << " starting configurations" << std::endl;
@@ -1213,18 +1181,72 @@ int main(int argc, char* argv[]){
         //     std::cout << "ITERATION " << i << " FAILED" << std::endl;
         //     std::cout << "ITERATION " << i << ":" << std::endl;
         //     printTileVec(allStartingTileCombinations[i]);
-
         // }
     } 
     
     double ratio = totalSolveable / (double)totalStartingConfigurations;
     std::cout<<"Percentage that one goes out on the first turn: " << std::endl;
     std::cout<< "(" << totalSolveable << "/" << totalStartingConfigurations << ") = " << 100.0*ratio << "%" << std::endl;        
+    return ratio;
+}
+
+void testMain(){
+
+    std::vector<std::pair<double, std::vector<int> > > tests = {
+        {1.0, {3, 1, 2}},
+        {1.0, {3, 1, 3}},
+        {1.0, {4, 1, 3}},
+        {1.0, {4, 1, 4}},
+        {1.0, {5, 1, 2}},
+        {.90, {6, 1, 3}},
+        {1.0, {7, 1, 4}},
+    };
+
     
-    end = std::chrono::system_clock::now();
+    for (int i = 0; i < tests.size(); i++){
+        int expectedResult = tests[i].first;
+        int actualResult = driveSolve(tests[i].second[0], tests[i].second[1], tests[i].second[2]);
+        if (expectedResult != actualResult){
+            std::cout<<"### TEST ITERATION " << i << " FAILED ###" << std::endl;
+            std::cout<<"-> Expected " << expectedResult <<", got " << actualResult << std::endl;
+            return;
+        }
+    }
+
+    std::cout << " ### ALL TESTS PASSED ### " << std::endl;
+
+}
+
+int main(int argc, char* argv[]){
+    if (argc == 2){
+        testMain();
+        return 0;
+    }
+
+    std::cout<<"Number of numbers?"<<std::endl;
+    std::string range_str = "";
+    std::cin >> range_str;
+    std::cout<<"Number of colors?"<<std::endl;
+    std::string colors_str = "";
+    std::cin >> colors_str;
+    std::cout<<"Number of starting tiles?"<<std::endl;
+    std::string starting_tiles_str = "";
+    std::cin >> starting_tiles_str;
+    
+    int range = atoi(range_str.data());
+    int colors = atoi(colors_str.data());
+    int starting_tile_size = atoi(starting_tiles_str.data());
+    
+    std::cout<<"Range is 0 to " << range - 1 << std::endl;
+    std::cout<<"There are " << colors_str << " colors" << std::endl;
+    std::cout<<"There are " << starting_tiles_str << " starting tiles " << std::endl;
+    
+    auto start = std::chrono::system_clock::now();
+    double result = driveSolve(range, colors, starting_tile_size);
+    auto end = std::chrono::system_clock::now();
  
-    elapsed_seconds = end-start;
-    end_time = std::chrono::system_clock::to_time_t(end);
+    std::chrono::duration<double> elapsed_seconds = end-start;
+    auto end_time = std::chrono::system_clock::to_time_t(end);
  
     std::cout << "Total elapsed time: " << elapsed_seconds.count() << "s"
               << std::endl;

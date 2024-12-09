@@ -175,9 +175,9 @@ std::vector<Tile *> pretty_print(std::vector<Tile *>& c, long long int combo, in
     return combination;
 }
 
-std::vector<std::vector<Tile *> > combo(std::vector<Tile *>& c, int starting_tile_size, bool createNew)
+void combo(std::vector<Tile *>& c, int starting_tile_size, 
+    bool createNew, std::vector<std::vector<Tile *> >& ret )
 {
-    std::vector<std::vector<Tile *> > ret;
     long long int n = c.size();
     long long int combo = (1 << (long long int) starting_tile_size) - 1; // starting_tile_size bit sets
     while (combo < (long long int)1<<n) {
@@ -192,7 +192,6 @@ std::vector<std::vector<Tile *> > combo(std::vector<Tile *>& c, int starting_til
         combo |= y;
         ret.push_back(combination);
     }
-    return ret;
 }
 
 std::vector<std::vector<Tile*> > getSets(std::vector<Tile *> &startingCombination, int range){
@@ -1007,7 +1006,8 @@ std::vector<std::vector<Tile*> > setsMap, std::vector<std::vector<std::vector<Ti
         // we need a permutation of each unique combination
         for (int i = v.size(); i > 0; i--){
             // optimization completed: check that permutations are sorted in largest length order first
-            std::vector<std::vector<Tile *> > someCombinations = combo(v, i, false);
+            std::vector<std::vector<Tile *> > someCombinations;
+            combo(v, i, false, someCombinations);
             for (int j = 0; j < someCombinations.size(); j++){
                 std::vector<Tile *> combination = someCombinations[j];
                 if (combination.size() == 1){
@@ -1091,6 +1091,38 @@ bool getResultFromStartingCombo(std::vector<Tile *> v, std::vector<std::vector<T
     return Solve(v, Board, range, setsMap, runsSet, visitedTiles);
 }
 
+// Function to calculate factorial of a number
+long long factorial(int n) {
+    long long result = 1;
+    for (int i = 1; i <= n; ++i) {
+        result *= i;
+    }
+    return result;
+}
+
+// Function to calculate "x choose y", which is the binomial coefficient
+long long xchoosey(int x, int y) {
+    // Handle invalid cases
+    if (x > y || x < 0 || y < 0) {
+        return 0;
+    }
+
+    // Optimization: Use the smaller value between x and y-x to minimize calculations
+    if (x > y - x) {
+        x = y - x;  // C(y, x) == C(y, y-x)
+    }
+
+    long long result = 1;
+
+    // Calculate C(y, x) iteratively
+    for (int i = 0; i < x; ++i) {
+        result *= (y - i);       // Multiply by the next term of the numerator
+        result /= (i + 1);       // Divide by the corresponding term of the denominator
+    }
+
+    return result;
+}
+
 double driveSolve(int range, int colors, int starting_tile_size){
     int num_threads = std::thread::hardware_concurrency();
     std::cout << "number of threads = " << num_threads << std::endl;
@@ -1111,8 +1143,11 @@ double driveSolve(int range, int colors, int starting_tile_size){
     
     std::cout<<"Calculating all possible starting configurations"<<std::endl;
     auto startInner = std::chrono::system_clock::now();
-    std::vector<std::vector<Tile *> > allStartingTileCombinations = combo(allAvailableTiles, starting_tile_size, true);
-    long long int totalStartingConfigurations = allStartingTileCombinations.size();
+    std::vector<std::vector<Tile *> > allStartingTileCombinations;
+    long long int totalStartingConfigurations = xchoosey(starting_tile_size, range*colors);
+    std::cout << totalStartingConfigurations << " starting configurations" << std::endl;
+    allStartingTileCombinations.reserve(totalStartingConfigurations);
+    combo(allAvailableTiles, starting_tile_size, true, allStartingTileCombinations);
     
     auto endInner = std::chrono::system_clock::now();
  
@@ -1122,7 +1157,6 @@ double driveSolve(int range, int colors, int starting_tile_size){
     std::cout << "elapsed time for starting configurations: " << elapsed_seconds_inner.count() << "s"
               << std::endl;
 
-    std::cout << totalStartingConfigurations << " starting configurations" << std::endl;
 
 
     // for (int i = 0; i < allStartingTileCombinations.size(); i++){
